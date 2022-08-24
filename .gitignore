@@ -1,0 +1,5 @@
+client.json
+.env
+__pycache__/
+user.sqlite3
+.DS_Store
