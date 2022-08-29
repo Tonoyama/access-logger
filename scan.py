@@ -2,6 +2,7 @@ import os
 import pygame.mixer
 from os.path import join, dirname
 import time
+import binascii
 import nfc
 
 sound_path = join(dirname(__file__), 'sound')

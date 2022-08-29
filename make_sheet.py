@@ -1,99 +1,47 @@
-from apiclient.discovery import build 
-#from apiclient.http import MediaFileUpload
+import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from httplib2 import Http
-#from googleapiclient.http import MediaIoBaseDownload
-#import io
-import sys
-sys.path.append("../")
-from config import *
- 
- 
-SCOPES = ['https://www.googleapis.com/auth/drive', "https://www.googleapis.com/auth/spreadsheets"]
- 
- 
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+import pprint
+
+scope = ['https://spreadsheets.google.com/feeds',
+         'https://www.googleapis.com/auth/drive']
+json_keyfile_path = 'client.json'
+
+# サービスアカウントキーを読み込む
 credentials = ServiceAccountCredentials.from_json_keyfile_name(
-    'userData/service_account_key.json', SCOPES
-)
-http_auth = credentials.authorize(Http())
- 
-drive_service = build('drive', 'v3', http=http_auth)
-sheet_service = build('sheets', 'v4', http=http_auth)
+    json_keyfile_path, scope)
 
-class drive:
-    class create:
-        @staticmethod
-        def folder(name, parent):
-            file_metadata = {
-                'name': name,
-                'mimeType': 'application/vnd.google-apps.folder',
-                'parents': [parent]
-            }
-            file = drive_service.files().create(body=file_metadata,fields='id').execute()
-            return file
-        
-        def spreadSheet(name, parent):
-            file_metadata = {
-                'name': name,
-                'mimeType': 'application/vnd.google-apps.spreadsheet',
-                'parents': [parent]
-            }
-            file = drive_service.files().create(body=file_metadata,fields='id').execute()
-            return file
+# pydrive用にOAuth認証を行う
+gauth = GoogleAuth()
+gauth.credentials = credentials
+drive = GoogleDrive(gauth)
 
-    @staticmethod
-    def copy(fileID, parent, name=None):
-        metadata = {
-            "name":name,
-            "parents":[parent]
-        }
-        file = drive_service.files().copy(
-            fileId=fileID, body=metadata
-        ).execute()
-        return file
-        
-    @staticmethod
-    def get(q=None):
-        results = drive_service.files().list(
-            q=q,
-            pageSize=30, 
-            fields="files(id, name, mimeType)"
-        ).execute()
-        items = results.get('files', [])
-        return items
+folder_id = '1G44sF4qqR9G2a-EZRlFdvn4kcfpKbtNC'
+f = drive.CreateFile({
+    'title': 'sample_spread',
+    'mimeType': 'application/vnd.google-apps.spreadsheet',
+    "parents": [{"id": folder_id}]})
+f.Upload()
 
-    @staticmethod
-    def delete(fileID):
-        file = drive_service.files().delete(
-            fileId=fileID
-        ).execute()
-        return file
-    
-    
-class spreadSheet:
-    @staticmethod
-    def get(fileID, range):
-        value = sheet_service.spreadsheets().values().get(
-            spreadsheetId=fileID, range=range
-        ).execute()
-        return value
-    
-    @staticmethod
-    def append(fileId, data, range):
-        try:
-            if not range:
-                raise Exception("範囲が指定されていません")
-            range += "!A1"
-            sheet_service.spreadsheets().values().append(
-                spreadsheetId=fileId,
-                range=range,
-                valueInputOption="USER_ENTERED",
-                insertDataOption="INSERT_ROWS",
-                body=data
-            ).execute()
-            return True
-        except Exception as e:
-            print("Google Spread Sheet Error:",e.args[0])
-            return False
-        except:
-            return False
+# 作成したスプレッドシートの情報を出力
+pprint.pprint(f)
+
+# gspread用に認証
+gc = gspread.authorize(credentials)
+
+# スプレッドシートのIDを指定してワークブックを選択
+workbook = gc.open_by_key(f['id'])
+worksheet = workbook.sheet1
+
+# A1のセルに入力
+worksheet.update_acell('A1', 'Hello World!')
+
+# 2行目の1~3列目に入力
+cell_list = worksheet.range(2, 1, 2, 3)
+cell_list[0].value = '連番'
+cell_list[1].value = '名前'
+cell_list[2].value = '電話番号'
+
+# スプレッドシートを更新
+worksheet.update_cells(cell_list)
